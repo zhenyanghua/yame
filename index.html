@@ -1,0 +1,285 @@
+<!-- Yet Another Markdown Editor-->
+<!-- Author: Zhenyang Hua -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Yet Another Markdown Editor (YAME)</title>
+  <link rel="stylesheet" href="https://www.unpkg.com/github-markdown-css">
+  <style>
+    body {
+      margin: 0;
+    }
+
+    .container {
+      display: flex;
+      padding: 10px;
+    }
+
+    .markdown-body {
+      box-sizing: border-box;
+      min-width: 200px;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 45px;
+    }
+
+    @media (max-width: 767px) {
+      .markdown-body {
+        padding: 15px;
+      }
+    }
+    .viewer {
+      flex: 1 1;
+    }
+
+    .editor {
+      width: 500px;
+      height: 500px;
+      padding: 10px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .visually-hidden {
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      height: 1px;
+      overflow: hidden;
+      position: absolute;
+      white-space: nowrap;
+      width: 1px;
+    }
+
+    .menu {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .menu > .segment {
+      display: flex;
+    }
+
+    .panel {
+
+    }
+
+    ul.note-list {
+      padding-inline-start: 0;
+    }
+
+    .note-list li {
+      padding: 4px;
+      list-style-type: none;
+      cursor: pointer;
+    }
+
+    .note-list li:hover {
+      background-color: #ffebeb;
+    }
+
+
+    textarea {
+      box-sizing: border-box;
+      font-family: Consolas, serif;
+      width: 100%;
+      height: 100%;
+      resize: none;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="editor">
+    <div class="menu">
+      <div class="segment">
+        <button class="new">📝New</button>
+        <button class="open">📂Open</button>
+        <button class="save">💾Save</button>
+      </div>
+      <div class="segment">
+        <button class="export-db">📤Export Local Notes</button>
+        <button class="import-db">📥Import Local Notes</button>
+        <div class="hidden">
+          <label for="file">📥Import Local Notes</label>
+          <input id="file" type="file" class="input-import-db"/>
+        </div>
+      </div>
+    </div>
+    <div class="panel hidden"></div>
+    <label class="visually-hidden" for="editor">Editor</label>
+    <textarea id="editor" placeholder="Open or start writing here"></textarea>
+  </div>
+  <div class="viewer markdown-body"></div>
+</div>
+<script src="https://unpkg.com/marked"></script>
+<script src="https://unpkg.com/dexie"></script>
+<!--<script src="https://unpkg.com/dexie-export-import"></script>-->
+<script src="dexie-export-import.js"></script>
+<script>
+  const textarea = document.querySelector('textarea');
+  const viewer = document.querySelector('.viewer');
+  const btnSave = document.querySelector('.save');
+  const btnOpen = document.querySelector('.open');
+  const btnNew = document.querySelector('.new');
+  const btnExportDb = document.querySelector('.export-db');
+  const btnImportDb = document.querySelector('.import-db');
+  const inputImportDb = document.querySelector('.input-import-db');
+  const panel = document.querySelector('.panel');
+
+  let activeDoc;
+  let db;
+
+  initDb();
+
+  textarea.addEventListener('input', async (e) => {
+    parse(textarea.value);
+  });
+
+  textarea.addEventListener('paste', async (e) => {
+    const data = await navigator.clipboard.read();
+    data
+        .filter(item => item.types.includes('image/png'))
+        .forEach(async item => {
+          const blob = await item.getType('image/png');
+          // Save blob as users paste
+          // TODO - need to remove those from idb and revoke URL when the current session or activeDoc is reset to undefined.
+          const blobId = await saveBlob(blob);
+          const url = URL.createObjectURL(blob);
+          // find the cursor position and insert
+          // FIXME - the "Cut" command doesn't seem to be working
+          textarea.value = textarea.value.slice(0, textarea.selectionStart)
+              + `![Image - ${new Date().toLocaleString('en-US')}](bid:${blobId}:${url})` + textarea.value.slice(textarea.selectionStart + 1);
+          parse(textarea.value);
+        });
+  });
+
+  btnNew.addEventListener('click', async (e) => {
+    textarea.value = '';
+    viewer.innerHTML = '';
+    activeDoc = undefined;
+  });
+
+  btnSave.addEventListener('click', async (e) => {
+    save(textarea.value);
+  });
+
+  btnOpen.addEventListener('click', async (e) => {
+    openList();
+  });
+
+  btnExportDb.addEventListener('click', async (e) => {
+    exportDb();
+  });
+
+  btnImportDb.addEventListener('click', (e) => {
+    inputImportDb.click();
+  })
+
+  inputImportDb.addEventListener('change', async (e) => {
+    try {
+      const file = inputImportDb.files[0];
+      console.debug('file', file)
+      await importDb(file);
+    } catch (err) {
+      console.error(err.name, err.message);
+    }
+  });
+
+
+  function parse(text) {
+    viewer.innerHTML = marked(text.replaceAll(/bid:\d+:/gi, ''));
+  }
+
+  async function saveBlob(blob) {
+    return db.images.put({
+      data: blob
+    });
+  }
+
+  // when saving the entire MD, we should replace the pasted images -
+  // ![Pasted Image xxx](bid:${id}:url) with a standardized template -
+  // ![Pasted Image xxx](bid:${id}:GENERATED_URL) so no temporary URL is persisted.
+  async function save(text, name) {
+    const doc = {
+      ...activeDoc,
+      name: name || activeDoc ? activeDoc.name : 'A' + Date.now(),
+      data: text.replaceAll(/(\!\[.*\]\(bid:\d+:)(.*)(\))/gi, '$1GENERATED_URL$3'),
+      lastModifiedAt: Date.now(),
+    };
+
+    return db.docs.put(doc);
+  }
+
+  async function openList() {
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) {
+      const docs = await db.docs.orderBy('lastModifiedAt').reverse().sortBy('name');
+      list = docs.map(record => `<li data-id="${record.id}">📝${record.name}<i>(${new Date(record.lastModifiedAt).toLocaleString('en-US')})</i></li>`)
+          .join('\n');
+      const ul = document.createElement('ul');
+      ul.classList.add('note-list');
+      ul.innerHTML = list;
+      panel.appendChild(ul);
+      [...ul.childNodes].forEach(li => li.addEventListener('click', (e) => {
+        openNote({doc: docs.find(doc => doc.id === Number(li.getAttribute('data-id')))});
+      }));
+    } else {
+      // cleanup
+      panel.innerHTML = '';
+    }
+  }
+
+  // Replace all matching patterns ![blob-id](GENERATED_URL) with the Pasted
+  async function openNote({query, doc}) {
+    activeDoc = query ? await query : doc;
+    const {id, data, name} = activeDoc;
+    const matches = [...data.matchAll(/\!\[.*\]\(bid:(\d+):.*\)/gi)];
+    const imageIds = matches.map(m => Number(m[1]));
+    const images = await db.images.bulkGet(imageIds);
+    const replacedData = data.replaceAll(/(\!\[.*\]\(bid:(\d+):)(.*)(\))/gi, (m, p1, p2, p3, p4) => {
+      const image = images.find(x => x.id === Number(p2));
+      const url = URL.createObjectURL(image.data);
+      return `${p1}${url}${p4}`;
+    });
+    textarea.value = replacedData;
+    parse(replacedData);
+  }
+
+  async function initDb() {
+    db = new Dexie('markdown_notes');
+    db.version(1).stores({
+      images: '++id',
+      docs: '++id, name, lastModifiedAt'
+    });
+  }
+
+  async function exportDb() {
+    const blob = await db.export({
+      prettyJson: true,
+      filter(table, value, key) {
+        console.debug(table, value, key);
+        return true;
+      }
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    document.body.appendChild(a);
+    a.style = "display: none";
+    a.href = url;
+    a.download = `Notes - ${new Date().toLocaleString('en-US')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  }
+
+  async function importDb(file) {
+    await db.import(file, {
+      overwriteValues: true
+    });
+  }
+</script>
+</body>
+</html>
