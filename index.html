@@ -157,24 +157,26 @@
   });
 
   btnNew.addEventListener('click', async (e) => {
-    textarea.value = '';
-    viewer.innerHTML = '';
-    activeDoc = undefined;
+    closeList();
+    reset();
   });
 
   btnSave.addEventListener('click', async (e) => {
+    closeList();
     save(textarea.value);
   });
 
   btnOpen.addEventListener('click', async (e) => {
-    openList();
+    toggleList();
   });
 
   btnExportDb.addEventListener('click', async (e) => {
+    closeList();
     exportDb();
   });
 
   btnImportDb.addEventListener('click', (e) => {
+    closeList();
     inputImportDb.click();
   })
 
@@ -188,6 +190,11 @@
     }
   });
 
+  function reset() {
+    textarea.value = '';
+    viewer.innerHTML = '';
+    activeDoc = undefined;
+  }
 
   function parse(text) {
     viewer.innerHTML = marked(text.replaceAll(/bid:\d+:/gi, ''));
@@ -213,7 +220,14 @@
     return db.docs.put(doc);
   }
 
-  async function openList() {
+  function closeList() {
+    if (!panel.classList.contains('hidden')) {
+      panel.classList.add('hidden');
+    }
+    panel.innerHTML = '';
+  }
+
+  async function toggleList() {
     panel.classList.toggle('hidden');
     if (!panel.classList.contains('hidden')) {
       const docs = await db.docs.orderBy('lastModifiedAt').reverse().sortBy('name');
@@ -258,11 +272,7 @@
 
   async function exportDb() {
     const blob = await db.export({
-      prettyJson: true,
-      filter(table, value, key) {
-        console.debug(table, value, key);
-        return true;
-      }
+      prettyJson: true
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -279,6 +289,7 @@
     await db.import(file, {
       overwriteValues: true
     });
+    reset();
   }
 </script>
 </body>
