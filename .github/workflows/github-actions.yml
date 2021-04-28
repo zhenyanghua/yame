@@ -2,7 +2,7 @@ name: GitHub Actions
 on:
   push:
     branches:
-      - ['dev']
+      ['dev']
 jobs:
   build:
     runs-on: ubuntu-latest
