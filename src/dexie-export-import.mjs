@@ -8,7 +8,7 @@
  *
  * ==========================================================================
  *
- * Version 1.0.0, Tue Apr 27 2021
+ * Version 1.0.0, Wed Apr 28 2021
  *
  * http://dexie.org
  *
@@ -192,7 +192,7 @@ var decode = function decode(base64) {
 };
 
 /* eslint-env browser, node */
-var _global = typeof self === 'undefined' ? global : self;
+var _global$2 = typeof self === 'undefined' ? global : self;
 var exportObj = {};
 [
     'Int8Array',
@@ -206,7 +206,7 @@ var exportObj = {};
     'Float64Array'
 ].forEach(function (typeName) {
     var arrType = typeName;
-    var TypedArray = _global[arrType];
+    var TypedArray = _global$2[arrType];
     if (TypedArray) {
         exportObj[typeName.toLowerCase() + "2"] = {
             test: function (x) { return typeson.toStringTag(x) === arrType; },
@@ -240,8 +240,9 @@ var arrayBuffer = {
 };
 // See also typed-arrays!
 
+var _global$1 = typeof self === 'undefined' ? global : self;
 var TSON = new typeson().register(structuredCloning);
-var readBlobsSynchronously = 'FileReaderSync' in self; // true in workers only.
+var readBlobsSynchronously = 'FileReaderSync' in _global$1; // true in workers only.
 var blobsToAwait = [];
 var blobsToAwaitPos = 0;
 // Need to patch encapsulateAsync as it does not work as of typeson 5.8.2
@@ -1389,6 +1390,7 @@ function JsonParser(allowPartial) {
     };
 }
 
+var _global = typeof self === 'undefined' ? global : self;
 var DEFAULT_KILOBYTES_PER_CHUNK = 1024;
 function importDB(exportedData, options) {
     return __awaiter(this, void 0, void 0, function () {
@@ -1568,7 +1570,7 @@ function importInto(db, exportedData, options) {
                 case 1:
                     jsonStream = _a.sent();
                     dbExportFile = jsonStream.result;
-                    readBlobsSynchronously = 'FileReaderSync' in self;
+                    readBlobsSynchronously = 'FileReaderSync' in _global;
                     dbExport = dbExportFile.data;
                     if (!options.acceptNameDiff && db.name !== dbExport.databaseName)
                         throw new Error("Name differs. Current database name is " + db.name + " but export is " + dbExport.databaseName);
