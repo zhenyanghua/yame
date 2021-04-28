@@ -151,7 +151,8 @@
           // find the cursor position and insert
           // FIXME - the "Cut" command doesn't seem to be working
           textarea.value = textarea.value.slice(0, textarea.selectionStart)
-              + `![Image - ${new Date().toLocaleString('en-US')}](bid:${blobId}:${url})` + textarea.value.slice(textarea.selectionStart + 1);
+              + `![Image - ${new Date().toLocaleString('en-US')}](bid:${blobId}:${url})`
+                  + textarea.value.slice(textarea.selectionStart + 1);
           parse(textarea.value);
         });
   });
